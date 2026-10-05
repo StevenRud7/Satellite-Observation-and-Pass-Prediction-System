@@ -1,0 +1,111 @@
+name: CI
+
+# Runs on every push to main and every pull request targeting main:
+# install dependencies, lint, type-check, run the test suite, and build
+# the frontend - the same checks documented in INSTRUCTIONS.md section 8
+# ("Testing everything"), just run automatically instead of by hand.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.8 proves the documented minimum-supported version still
+        # actually works end-to-end (not just the static compatibility
+        # check that tests/test_python_compat.py runs on every version);
+        # 3.11 is the recommended version. 3.12 is also supported (see
+        # INSTRUCTIONS.md section 9) but isn't run on every CI build to
+        # keep this workflow's runtime reasonable.
+        python-version: ["3.8", "3.11"]
+    services:
+      # A real Postgres, not SQLite: the database-backed tests are
+      # designed to run against the genuine article (see
+      # INSTRUCTIONS.md section 8.1) so constraint/JSON-handling
+      # differences can't hide real bugs.
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: satellite_obs_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Lint (ruff)
+        run: ruff check .
+
+      - name: Format check (black)
+        run: black --check .
+
+      - name: Type check (mypy)
+        run: mypy app
+
+      - name: Apply migrations
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/satellite_obs_test
+        run: alembic upgrade head
+
+      - name: Test
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/satellite_obs_test
+        run: pytest --cov=app --cov-report=term-missing
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build

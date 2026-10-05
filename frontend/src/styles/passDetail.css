@@ -1,0 +1,110 @@
+/* The mission dossier panel (PassDossier.tsx) - a single selected pass,
+   embedded inline in the mission-control layout's right-hand column
+   (see dashboard.css `.mission-control__dossier`), not a separate page. */
+.dossier-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.dossier-panel__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.dossier-panel__header > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.dossier-panel__eyebrow {
+  font-size: 0.68rem;
+  color: var(--color-uv-cyan);
+  margin: 0 0 0.3rem;
+}
+
+.dossier-panel__title {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin: 0;
+  overflow-wrap: break-word;
+}
+
+.dossier-panel__designation {
+  font-size: 0.75rem;
+  color: var(--color-text-dim);
+  margin: 0.3rem 0 0;
+}
+
+.dossier-panel__close {
+  flex-shrink: 0;
+}
+
+.pass-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 1rem;
+}
+
+.pass-summary__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.92rem;
+}
+
+.method-comparison {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.6rem;
+  margin-bottom: 1.1rem;
+}
+
+@media (max-width: 30rem) {
+  .method-comparison {
+    grid-template-columns: 1fr;
+  }
+}
+
+.method-comparison__option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.9rem 0.6rem;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.88rem;
+}
+
+.method-comparison__option[aria-pressed="true"] {
+  border-color: var(--color-accent);
+}
+
+.why-panel {
+  border-top: 1px solid var(--color-border);
+  padding-top: 1rem;
+}
+
+.why-panel h4 {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 0.6rem;
+  font-size: 0.85rem;
+}
+
+.why-panel ul {
+  margin: 0 0 0.6rem;
+  padding-left: 1.1rem;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}

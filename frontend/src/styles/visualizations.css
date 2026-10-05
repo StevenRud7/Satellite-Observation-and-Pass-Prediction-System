@@ -1,0 +1,104 @@
+/* Pass timeline */
+.pass-timeline {
+  margin: 0.5rem 0 1.25rem;
+}
+
+.pass-timeline__track {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  background-color: var(--color-border);
+  margin-bottom: 0.6rem;
+}
+
+.pass-timeline__fill {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    var(--color-text-dim),
+    var(--color-accent),
+    var(--color-text-dim)
+  );
+  opacity: 0.7;
+}
+
+.pass-timeline__marker {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: var(--color-accent);
+  border: 2px solid var(--color-bg-elevated);
+  transform: translate(-50%, -50%);
+}
+
+.pass-timeline__labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--color-text-dim);
+}
+
+.pass-timeline__labels-peak {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+/* View tabs (Sky Path / 3D View / Elevation Graph) */
+.view-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+/* Sky path */
+.sky-path {
+  width: 100%;
+  max-width: 280px;
+  display: block;
+  margin: 0 auto;
+}
+
+.sky-path__ring {
+  fill: none;
+  stroke: var(--color-border);
+  stroke-dasharray: 3 4;
+  opacity: 0.6;
+}
+
+.sky-path__label {
+  fill: var(--color-text-dim);
+  font-size: 11px;
+}
+
+.sky-path__trajectory {
+  stroke: var(--color-excellent);
+  stroke-width: 2;
+}
+
+.sky-path__point--rise,
+.sky-path__point--set {
+  fill: var(--color-text-dim);
+}
+
+.sky-path__point--peak {
+  fill: var(--color-accent);
+}
+
+/* 3D globe */
+.globe-3d__canvas {
+  width: 100%;
+  height: 320px;
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: var(--color-bg-recessed);
+}
+
+/* Elevation chart / visibility bar chart wrappers */
+.elevation-chart,
+.visibility-bar-chart {
+  width: 100%;
+}

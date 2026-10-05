@@ -1,0 +1,18 @@
+# Local development convenience only - not used in production. Production
+# targets Neon (see README). Run `docker compose up -d` to get a local
+# Postgres matching backend/.env.example's DATABASE_URL.
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: satellite_obs
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

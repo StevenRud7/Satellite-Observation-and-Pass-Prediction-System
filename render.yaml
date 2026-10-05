@@ -1,0 +1,37 @@
+# Render Blueprint for the backend API.
+#
+# This lets Render create and configure the web service automatically
+# from this file (Dashboard -> New -> Blueprint -> point at this repo),
+# instead of clicking through every setting by hand. See DEPLOYMENT.md
+# for the full step-by-step walkthrough, including the manual-dashboard
+# alternative if you'd rather not use a Blueprint.
+#
+# Secrets (marked `sync: false` below) are never stored in this file -
+# Render prompts for them once in its dashboard and keeps them encrypted.
+
+services:
+  - type: web
+    name: satellite-obs-api
+    runtime: python
+    plan: free
+    region: oregon # change to whichever region is closest to you
+    rootDir: backend
+    buildCommand: "pip install -r requirements.txt"
+    # alembic upgrade head runs on every boot, not just fresh deploys -
+    # it's idempotent (a no-op if already at head), and this guarantees
+    # the schema is current even if a previous deploy's build was cached.
+    startCommand: "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+      # Pin the interpreter so deploys don't silently move to a newer Python
+      # than the pinned scientific libraries (astropy/numpy) support.
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: DATABASE_URL
+        sync: false # set manually in the Render dashboard - see DEPLOYMENT.md Step 2
+      - key: CORS_ORIGINS
+        sync: false # set to your Cloudflare Pages URL(s) - see DEPLOYMENT.md Step 5

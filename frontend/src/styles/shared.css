@@ -1,0 +1,269 @@
+/* Shared primitives used across the app, so buttons/inputs/cards look
+   consistent without a component library. Visual language: sharp corners,
+   thin violet-tinted borders, uppercase tracked labels - a technical
+   briefing-chart feel rather than a soft consumer-app one. */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.9rem;
+  position: relative;
+}
+
+.field__label {
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-text-dim);
+}
+
+.field__input,
+.field__select {
+  background-color: var(--color-bg-recessed);
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  color: var(--color-text);
+  padding: 0.55rem 0.7rem;
+  font-size: 0.92rem;
+  font-family: var(--font-mono);
+}
+
+.field__input:focus,
+.field__select:focus {
+  border-color: var(--color-accent);
+  outline: none;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  gap: 0.75rem;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border-radius: 3px;
+  border: 1px solid var(--color-border-bright);
+  background-color: transparent;
+  color: var(--color-text);
+  padding: 0.55rem 1.1rem;
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--color-accent);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn--primary {
+  background-color: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #180e00;
+  font-weight: 600;
+}
+
+.btn--primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.btn--ghost {
+  border-color: transparent;
+  color: var(--color-text-dim);
+  padding: 0.35rem 0.6rem;
+}
+
+.btn-group {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.btn-group__option {
+  flex: 1;
+  min-width: 6rem;
+}
+
+.btn-group__option[aria-pressed="true"] {
+  background-color: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #180e00;
+  font-weight: 600;
+}
+
+/* Cards use a corner-tick motif (the small L-shaped marks at each corner)
+   borrowed from technical schematic / briefing-chart framing. */
+.card {
+  position: relative;
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 1.25rem 1.4rem;
+}
+
+.card::before,
+.card::after {
+  content: "";
+  position: absolute;
+  width: 0.6rem;
+  height: 0.6rem;
+  border: 1.5px solid var(--color-border-bright);
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+.card::before {
+  top: -1px;
+  left: -1px;
+  border-right: none;
+  border-bottom: none;
+}
+
+.card::after {
+  bottom: -1px;
+  right: -1px;
+  border-left: none;
+  border-top: none;
+}
+
+.section-title {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 0 0 0.9rem;
+  color: var(--color-text);
+}
+
+.help-text {
+  font-size: 0.82rem;
+  color: var(--color-text-dim);
+  line-height: 1.5;
+  margin: 0.4rem 0 0;
+}
+
+.error-text {
+  font-size: 0.85rem;
+  color: var(--color-offline);
+  margin: 0.5rem 0 0;
+}
+
+/* Small pill badge, used for compact classification labels in list rows
+   (see ClassificationBadge.tsx variant="pill"). */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Circular "mission patch" badge - the larger classification treatment
+   used in mission-dossier headers, echoing an embroidered mission patch:
+   a colored ring, radial glow at the center, condensed uppercase label. */
+.mission-patch {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 5.5rem;
+  height: 5.5rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+  font-family: var(--font-display);
+  text-align: center;
+  line-height: 1.1;
+}
+
+.mission-patch__score {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.mission-patch__label {
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.85;
+}
+
+.spinner-text {
+  color: var(--color-text-dim);
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+}
+
+/* Search-result dropdown (place search, satellite name search). */
+.place-results {
+  position: absolute;
+  z-index: 20;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin: 0.25rem 0 0;
+  padding: 0.3rem;
+  list-style: none;
+  max-height: 16rem;
+  overflow-y: auto;
+  background-color: var(--color-bg-recessed);
+  border: 1px solid var(--color-border-bright);
+  border-radius: 4px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.place-results__option {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.place-results__option:hover,
+.place-results__option:focus-visible {
+  background-color: var(--color-bg-elevated);
+}
+
+.place-results__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.place-results__type {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-dim);
+}

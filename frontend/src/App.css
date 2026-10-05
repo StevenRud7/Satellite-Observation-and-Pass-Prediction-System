@@ -1,0 +1,146 @@
+.app-shell {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.75rem 0.9rem;
+}
+
+.app-header__title {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin: 0.2rem 0 0;
+  background: var(--gradient-spectral);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.app-header__status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background-color: var(--color-bg-elevated);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  color: var(--color-text-dim);
+  white-space: nowrap;
+}
+
+.app-main {
+  flex: 1;
+  padding: 0 1.75rem 2.5rem;
+  max-width: 88rem;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+/* Masthead eyebrow: a short mission-control-style tagline above the
+   title. This replaces what used to literally say "Phase 8 - Frontend
+   MVP" - the site no longer shows build/phase progression to visitors
+   (see App.tsx); this is purely flavor text now. */
+.masthead__eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-uv-cyan);
+  margin: 0 0 0.2rem;
+}
+
+.app-header__divider {
+  margin: 0 1.75rem 1.25rem;
+}
+
+.status-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-dot--checking {
+  background-color: var(--color-text-dim);
+}
+
+.status-dot--online {
+  background-color: var(--color-online);
+  box-shadow: 0 0 0 3px rgba(52, 216, 255, 0.18);
+}
+
+.status-dot--offline {
+  background-color: var(--color-offline);
+  box-shadow: 0 0 0 3px rgba(255, 77, 106, 0.18);
+}
+
+/* Footer: the animated spectral-band graphic (SpectralHero.tsx) now lives
+   here, much smaller, as a closing flourish rather than a tall banner
+   competing with the controls for top-of-page space (see App.tsx). */
+.app-footer {
+  padding: 1.5rem 1.75rem 2rem;
+  max-width: 88rem;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.spectral-hero {
+  display: block;
+  width: 100%;
+}
+
+.spectral-hero--footer {
+  height: 1.6rem;
+  margin: 0 0 0.75rem;
+}
+
+.spectral-hero__band {
+  animation: spectral-hero-drift 9s linear infinite;
+}
+
+@keyframes spectral-hero-drift {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(80px);
+  }
+}
+
+.spectral-hero__scan {
+  animation: spectral-hero-scan 6s ease-in-out infinite;
+  filter: blur(6px);
+}
+
+@keyframes spectral-hero-scan {
+  0%,
+  100% {
+    transform: translateX(0);
+    opacity: 0.15;
+  }
+  50% {
+    transform: translateX(775px);
+    opacity: 0.65;
+  }
+}
+
+.app-footer__text {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--color-text-dim);
+  text-align: center;
+}

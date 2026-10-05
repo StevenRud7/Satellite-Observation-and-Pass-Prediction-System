@@ -1,0 +1,226 @@
+/* One-page "mission control" layout: a row of control cards (location,
+   satellite picker, preferences) sits on top so all three are visible
+   together, the mission queue and dossier sit below that as their own
+   row, and clicking "Find best opportunities" scrolls the mission-queue
+   row into view (see Dashboard.tsx) for when the controls push it below
+   the fold - mainly on narrower/mobile screens. */
+.mission-control {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+.mission-control__controls {
+  display: grid;
+  /* Exactly three cards: this yields three even columns on wide screens
+     and reflows to two, then one, as the viewport narrows - no separate
+     breakpoint needed for the common cases in between. */
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.mission-control__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  text-align: center;
+}
+
+.mission-control__actions .btn--primary {
+  min-width: 16rem;
+}
+
+.mission-control__results {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+  /* Leaves a little breathing room above the "Mission queue" heading
+     when Dashboard.tsx scrolls this row into view. */
+  scroll-margin-top: 1.25rem;
+}
+
+@media (max-width: 64rem) {
+  .mission-control__results {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mission-control__queue {
+  min-width: 0;
+}
+
+.mission-control__dossier {
+  position: sticky;
+  top: 1.5rem;
+}
+
+@media (max-width: 64rem) {
+  .mission-control__dossier {
+    position: static;
+  }
+}
+
+.mission-control__dossier-placeholder {
+  text-align: center;
+  padding: 3rem 1.5rem;
+  color: var(--color-text-dim);
+}
+
+/* Tracked-satellite list. */
+.satellite-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.9rem;
+}
+
+.satellite-list__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font-size: 0.88rem;
+}
+
+.satellite-list__id {
+  color: var(--color-text-dim);
+  font-size: 0.8rem;
+}
+
+.satellite-list__add {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.satellite-list__add .field__input {
+  flex: 1;
+}
+
+/* Curated satellite catalog, grouped chips. */
+.satellite-catalog {
+  margin-top: 0.6rem;
+}
+
+.satellite-catalog__group {
+  margin-bottom: 0.7rem;
+}
+
+.satellite-catalog__category {
+  display: block;
+  font-size: 0.65rem;
+  color: var(--color-text-dim);
+  margin-bottom: 0.35rem;
+}
+
+.satellite-catalog__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.chip {
+  border: 1px solid var(--color-border-bright);
+  background-color: transparent;
+  color: var(--color-text);
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.78rem;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.chip:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.chip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Mission queue - ranked opportunities as "mission dossier" cards. */
+.opportunity-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.opportunity-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  text-align: left;
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 1rem 1.2rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+  font-family: inherit;
+  color: inherit;
+}
+
+.opportunity-card:hover {
+  border-color: var(--color-border-bright);
+}
+
+.opportunity-card[aria-pressed="true"] {
+  border-color: var(--color-accent);
+}
+
+.opportunity-card__rank {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  color: var(--color-text-dim);
+  min-width: 1.8rem;
+}
+
+.opportunity-card__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.opportunity-card__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.opportunity-card__header h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.opportunity-card__designation {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--color-text-dim);
+}
+
+.opportunity-card__stats {
+  margin: 0;
+  color: var(--color-text-dim);
+  font-size: 0.85rem;
+  font-family: var(--font-mono);
+}
