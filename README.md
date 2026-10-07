@@ -10,6 +10,8 @@ see the ISS tonight?") using genuine orbital mechanics (SGP4
 propagation, real ephemeris-grade coordinate transforms, real sun/shadow
 geometry) rather than a lookup table or a guess.
 
+Web Link not public yet, but can be set up locally using INTRUCTIONS.md.
+
 ---
 
 ## Table of contents
