@@ -36,7 +36,13 @@ with `... had 3 non-blank line(s), expected 2` - also only visible
 against the real API, for the same reason.)
 
 The HTTP client is injectable so tests can supply a mocked transport
-instead of making real network calls.
+instead of making real network calls. The default timeout is
+deliberately more generous than httpx's own default: on free-tier hosts
+(e.g. Render) outbound requests share an IP across many unrelated
+accounts, and CelesTrak can be slow - or effectively unreachable for a
+window - for reasons that have nothing to do with this app's own code.
+A longer timeout gives a slow-but-working response more room to succeed
+rather than failing before CelesTrak even gets a chance to answer.
 """
 
 from __future__ import annotations
@@ -57,11 +63,19 @@ logger = get_logger(__name__)
 CELESTRAK_GP_URL = "https://celestrak.org/NORAD/elements/gp.php"
 DATA_SOURCE_NAME = "celestrak"
 
+# See the module docstring above for why this is more generous than
+# httpx's own 5-second default.
+DEFAULT_TIMEOUT_SECONDS = 30.0
+
 
 class CelestrakClient:
     """Thin, testable wrapper around CelesTrak's GP query API."""
 
-    def __init__(self, http_client: Optional[httpx.Client] = None, timeout: float = 10.0) -> None:
+    def __init__(
+        self,
+        http_client: Optional[httpx.Client] = None,
+        timeout: float = DEFAULT_TIMEOUT_SECONDS,
+    ) -> None:
         self._client = http_client or httpx.Client(timeout=timeout)
         self._owns_client = http_client is None
 
