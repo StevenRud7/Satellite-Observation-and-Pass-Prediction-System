@@ -63,15 +63,35 @@ class RankingService:
         data) is skipped with a warning rather than failing the whole
         request - one bad NORAD ID shouldn't take down a ranked list of
         several others.
+
+        However, if *every* requested satellite fails to fetch, that is
+        not the same thing as "there happen to be no qualifying passes
+        right now" - it means this request couldn't actually determine
+        anything. Returning an empty list in that case would be
+        indistinguishable, in the UI, from a genuine "no passes found"
+        result, which makes a real outage (e.g. CelesTrak being
+        unreachable from wherever this backend is hosted) silently look
+        like ordinary "nothing happening tonight" - which is exactly what
+        happened in practice before this check existed. So: the last
+        fetch/validation error is re-raised once no candidate at all
+        succeeded, rather than swallowed. It propagates as the same
+        CelestrakClientError/OrbitalDataValidationError it always was,
+        which app/api/error_handlers.py already turns into a clear 502/422
+        response - nothing new to wire up for that part.
         """
         opportunities: List[RankedOpportunity] = []
+        successful_fetches = 0
+        last_fetch_error: Optional[Exception] = None
 
         for norad_id in norad_ids:
             try:
                 record = self._satellite_service.get_satellite(norad_id)
             except (CelestrakClientError, OrbitalDataValidationError) as exc:
                 logger.warning("Skipping NORAD ID %s in ranking: %s", norad_id, exc)
+                last_fetch_error = exc
                 continue
+
+            successful_fetches += 1
 
             satrec = build_satrec(record.orbital_elements)
             passes = find_passes(
@@ -96,6 +116,9 @@ class RankingService:
                         visibility=method_result,
                     )
                 )
+
+        if successful_fetches == 0 and norad_ids and last_fetch_error is not None:
+            raise last_fetch_error
 
         return rank_opportunities(
             opportunities,
