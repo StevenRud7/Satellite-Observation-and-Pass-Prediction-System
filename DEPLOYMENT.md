@@ -354,3 +354,41 @@ paid instance.
 - [ ] No `.env` file was accidentally committed - `git log --all --
       backend/.env` should show nothing
 - [ ] The Neon connection string's password isn't reused anywhere else
+
+---
+
+## If the site times out loading passes
+
+Symptoms: "Find best opportunities" works locally but on the public site fails
+with something like `Could not reach CelesTrak: timed out`, or returns nothing.
+
+**Step 1 - find out which dependency is slow.** Open
+`https://<your-render-service>.onrender.com/api/diagnostics/upstream`. It makes
+one small CelesTrak request, checks the optional TLE snapshot, and pings the
+database, reporting the time each took:
+
+- `celestrak_iss_tle.ok: true` and a few seconds -> CelesTrak is reachable;
+  the app's own caching/pre-warming (below) is all you need.
+- `celestrak_iss_tle.ok: false` with a timeout or connection error -> your
+  Render host can't reach CelesTrak. Set up the TLE snapshot fallback (Step 3).
+
+**Step 2 - pre-warming.** `render.yaml` sets `PREWARM_ENABLED=true`: at startup
+(and every 2 hours while the service is awake) the backend refreshes the
+curated catalog satellites' orbital data into the cache, so a user request
+usually never waits on CelesTrak. If you configured Render by hand instead of
+via the Blueprint, add that environment variable yourself.
+
+**Step 3 - TLE snapshot fallback (only needed if Step 1 shows CelesTrak is
+unreachable from Render).**
+
+1. In GitHub: Actions -> "Update TLE snapshot" -> Run workflow. It fetches the
+   catalog satellites' TLEs and publishes `tle_snapshot.json` on a `tle-data`
+   branch (a separate branch on purpose, so refreshes never trigger a Render or
+   Cloudflare redeploy). It then re-runs every 6 hours.
+2. In Render, set `TLE_SNAPSHOT_URL` to
+   `https://raw.githubusercontent.com/<you>/<repo>/tle-data/tle_snapshot.json`.
+
+The snapshot is consulted only after a live CelesTrak fetch has failed, and
+only if the cached/snapshotted orbit's TLE epoch is at most 14 days old
+(`STALE_ORBITAL_DATA_MAX_EPOCH_AGE_SECONDS`). Satellites outside the curated
+catalog still need a live CelesTrak fetch.
