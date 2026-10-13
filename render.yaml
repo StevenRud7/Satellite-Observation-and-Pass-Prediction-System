@@ -35,3 +35,10 @@ services:
         sync: false # set manually in the Render dashboard - see DEPLOYMENT.md Step 2
       - key: CORS_ORIGINS
         sync: false # set to your Cloudflare Pages URL(s) - see DEPLOYMENT.md Step 5
+      # Warm the catalog satellites' orbital data in the background at startup.
+      - key: PREWARM_ENABLED
+        value: "true"
+      # Last-resort static TLE snapshot, used only when a live CelesTrak fetch
+      # fails. Edit the URL to match your GitHub user/repo.
+      - key: TLE_SNAPSHOT_URL
+        value: https://raw.githubusercontent.com/StevenRud7/Satellite-Observation-and-Pass-Prediction-System/tle-data/tle_snapshot.json
