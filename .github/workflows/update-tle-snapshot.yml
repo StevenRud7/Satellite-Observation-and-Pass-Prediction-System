@@ -1,0 +1,50 @@
+name: Update TLE snapshot
+
+# Fetches TLEs for the curated catalog from CelesTrak a few times a day and
+# publishes them as tle_snapshot.json on a dedicated `tle-data` branch. The
+# backend only reads this file as a LAST-RESORT fallback when a live CelesTrak
+# fetch fails (see backend/app/data/snapshot.py).
+#
+# It is committed to its own branch, not main, on purpose: Render and
+# Cloudflare Pages redeploy on pushes to main, and a data refresh every few
+# hours must not trigger a redeploy of either.
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Fetch TLEs
+        run: python scripts/update_tle_snapshot.py --out "$RUNNER_TEMP/tle_snapshot.json"
+
+      - name: Publish to tle-data branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code --heads origin tle-data >/dev/null 2>&1; then
+            git fetch origin tle-data
+            git checkout -B tle-data origin/tle-data
+          else
+            git checkout --orphan tle-data
+            git rm -rf . >/dev/null 2>&1 || true
+          fi
+          cp "$RUNNER_TEMP/tle_snapshot.json" tle_snapshot.json
+          git add tle_snapshot.json
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git commit -m "Update TLE snapshot"
+          git push origin tle-data
