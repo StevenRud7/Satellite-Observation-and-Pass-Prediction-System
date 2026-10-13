@@ -40,6 +40,14 @@ class PostgresSatelliteCache:
 
         return record
 
+    def get_stale(self, key: str) -> Optional[SatelliteRecord]:
+        """The latest stored record for `key` regardless of its age (callers
+        decide whether it is still usable) - used as a fallback when a live
+        CelesTrak refresh fails."""
+        norad_id = int(key)
+        with session_scope() as session:
+            return SatelliteRepository(session).get_latest_by_norad_id(norad_id)
+
     def set(self, key: str, value: SatelliteRecord) -> None:
         with session_scope() as session:
             SatelliteRepository(session).upsert(value)

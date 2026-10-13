@@ -41,6 +41,30 @@ class Settings(BaseSettings):
     # for the same reason.
     satellite_search_cache_ttl_seconds: int = 10 * 60  # 10 minutes
 
+    # --- Resilience when CelesTrak is slow or unreachable from the host ---
+
+    # If a live CelesTrak fetch fails, previously cached/snapshotted orbital
+    # data is still used - but only while its TLE epoch is no older than
+    # this. SGP4 along-track error grows with TLE age, so a couple of weeks
+    # is the point past which "stale but usable" turns into "misleading".
+    stale_orbital_data_max_epoch_age_seconds: int = 14 * 24 * 60 * 60
+
+    # After a network-level failure (timeout / connection error) talking to
+    # CelesTrak, skip live attempts for this long and go straight to
+    # cache/snapshot fallbacks, so repeated clicks aren't each made to wait
+    # for another full timeout.
+    celestrak_unreachable_cooldown_seconds: int = 90
+
+    # Optional URL of a JSON TLE snapshot (see scripts/update_tle_snapshot.py
+    # and .github/workflows/update-tle-snapshot.yml) used as a last-resort
+    # orbital data source when CelesTrak can't be reached from this host.
+    tle_snapshot_url: Optional[str] = None
+
+    # Warm the satellite cache for the curated catalog in the background
+    # at startup (and every couple of hours while the process is awake), so
+    # the first user request doesn't have to wait on CelesTrak.
+    prewarm_enabled: bool = False
+
     @property
     def cors_origin_list(self) -> List[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

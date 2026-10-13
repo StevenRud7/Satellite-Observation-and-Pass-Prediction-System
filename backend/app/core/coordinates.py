@@ -36,8 +36,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import List
+from typing import List, Tuple
 
+import erfa
 import numpy as np
 from astropy import units as u
 from astropy.coordinates import (
@@ -140,3 +141,81 @@ def teme_to_topocentric_many(
         )
         for i in range(len(results))
     ]
+
+
+# ---------------------------------------------------------------------------
+# Fast search-time geometry
+#
+# `teme_to_topocentric_many` above is the reference-quality transform and is
+# what every *reported* azimuth/elevation/range comes from. But Astropy's
+# frame machinery costs roughly 50-100 ms per call even for a single point
+# (measured: ~250 scalar calls to refine the rise/peak/set of 11 passes was
+# ~80% of a 72-hour search), and pass *searching* needs thousands of
+# throwaway elevation lookups (the coarse grid, then bisection and
+# ternary-search steps). `FastObserverGeometry` does the same TEME -> ITRS
+# -> local-horizon rotation chain directly in NumPy - same GMST82 function
+# Astropy uses (via pyerfa), same WGS84 ellipsoid - which makes those lookups
+# microseconds instead of milliseconds. It deliberately omits polar motion
+# and the UT1-UTC offset (both sub-0.01 degree effects), which is fine for
+# *locating* a crossing/peak time; `passes.find_passes` then recomputes the
+# reported rise/peak/set values with the Astropy path above, so nothing
+# user-visible is computed with the approximation.
+# ---------------------------------------------------------------------------
+
+_WGS84_A_KM = 6378.137
+_WGS84_F = 1.0 / 298.257223563
+_WGS84_E2 = _WGS84_F * (2.0 - _WGS84_F)
+
+
+class FastObserverGeometry:
+    """Vectorized TEME -> azimuth/elevation/range for one fixed observer."""
+
+    def __init__(self, observer: ObserverLocation) -> None:
+        lat = np.radians(observer.latitude_deg)
+        lon = np.radians(observer.longitude_deg)
+        height_km = observer.altitude_m / 1000.0
+
+        sin_lat, cos_lat = np.sin(lat), np.cos(lat)
+        sin_lon, cos_lon = np.sin(lon), np.cos(lon)
+
+        prime_vertical = _WGS84_A_KM / np.sqrt(1.0 - _WGS84_E2 * sin_lat * sin_lat)
+        self._observer_ecef = np.array(
+            [
+                (prime_vertical + height_km) * cos_lat * cos_lon,
+                (prime_vertical + height_km) * cos_lat * sin_lon,
+                (prime_vertical * (1.0 - _WGS84_E2) + height_km) * sin_lat,
+            ]
+        )
+        # Rows: east, north, up unit vectors in ECEF.
+        self._enu = np.array(
+            [
+                [-sin_lon, cos_lon, 0.0],
+                [-sin_lat * cos_lon, -sin_lat * sin_lon, cos_lat],
+                [cos_lat * cos_lon, cos_lat * sin_lon, sin_lat],
+            ]
+        )
+
+    def azimuth_elevation_range(
+        self, jd: np.ndarray, fr: np.ndarray, teme_positions_km: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Az (deg, 0-360), el (deg), range (km) for N TEME positions at the
+        UTC Julian dates given as (`jd`, `fr`) pairs (SGP4's own convention)."""
+        gmst = erfa.gmst82(jd, fr)
+        cos_g, sin_g = np.cos(gmst), np.sin(gmst)
+
+        x, y, z = teme_positions_km[:, 0], teme_positions_km[:, 1], teme_positions_km[:, 2]
+        # TEME -> ECEF is a rotation about z by the Greenwich sidereal angle.
+        ecef = np.empty_like(teme_positions_km)
+        ecef[:, 0] = cos_g * x + sin_g * y
+        ecef[:, 1] = -sin_g * x + cos_g * y
+        ecef[:, 2] = z
+
+        rel = ecef - self._observer_ecef
+        enu = rel @ self._enu.T
+        east, north, up = enu[:, 0], enu[:, 1], enu[:, 2]
+
+        horizontal = np.hypot(east, north)
+        rng = np.sqrt(east * east + north * north + up * up)
+        elevation = np.degrees(np.arctan2(up, horizontal))
+        azimuth = np.degrees(np.arctan2(east, north)) % 360.0
+        return azimuth, elevation, rng

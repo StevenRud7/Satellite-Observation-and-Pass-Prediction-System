@@ -47,6 +47,8 @@ rather than failing before CelesTrak even gets a chance to answer.
 
 from __future__ import annotations
 
+import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -67,6 +69,16 @@ DATA_SOURCE_NAME = "celestrak"
 # httpx's own 5-second default.
 DEFAULT_TIMEOUT_SECONDS = 30.0
 
+# Connecting is capped much lower than reading: a host that can't reach
+# CelesTrak at all (blocked/dropped connections) should fail in seconds and
+# fall back to cached/snapshot data, not sit through a full 30s per attempt.
+CONNECT_TIMEOUT_SECONDS = 8.0
+
+# After a network-level failure, skip live attempts for this long (seconds)
+# so repeated requests don't each wait out another timeout. Overridable via
+# Settings.celestrak_unreachable_cooldown_seconds (wired in deps.py).
+DEFAULT_UNREACHABLE_COOLDOWN_SECONDS = 90.0
+
 
 class CelestrakClient:
     """Thin, testable wrapper around CelesTrak's GP query API."""
@@ -75,9 +87,14 @@ class CelestrakClient:
         self,
         http_client: Optional[httpx.Client] = None,
         timeout: float = DEFAULT_TIMEOUT_SECONDS,
+        unreachable_cooldown_seconds: float = DEFAULT_UNREACHABLE_COOLDOWN_SECONDS,
     ) -> None:
-        self._client = http_client or httpx.Client(timeout=timeout)
+        self._client = http_client or httpx.Client(
+            timeout=httpx.Timeout(timeout, connect=min(timeout, CONNECT_TIMEOUT_SECONDS))
+        )
         self._owns_client = http_client is None
+        self._cooldown_seconds = unreachable_cooldown_seconds
+        self._unreachable_until = 0.0
 
     def close(self) -> None:
         if self._owns_client:
@@ -98,11 +115,30 @@ class CelestrakClient:
             OrbitalDataValidationError: a response was structurally invalid or
                 physically implausible.
         """
-        record = self._fetch_gp_json(norad_id)
-        retrieved_at = datetime.now(timezone.utc)
-        validate_gp_record(record, expected_norad_id=norad_id)
+        if time.monotonic() < self._unreachable_until:
+            raise CelestrakClientError(
+                "Could not reach CelesTrak: it was unreachable moments ago, "
+                "so live fetching is paused briefly"
+            )
 
-        line1, line2 = self._fetch_tle_lines(norad_id)
+        # The two requests are independent, so they run concurrently: on a
+        # slow link that halves the time spent waiting on CelesTrak. Results
+        # are still *consumed* in the original order (JSON, validate it, then
+        # TLE lines, validate those), so error precedence is unchanged.
+        try:
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                json_future = pool.submit(self._fetch_gp_json, norad_id)
+                tle_future = pool.submit(self._fetch_tle_lines, norad_id)
+                record = json_future.result()
+                retrieved_at = datetime.now(timezone.utc)
+                validate_gp_record(record, expected_norad_id=norad_id)
+                line1, line2 = tle_future.result()
+        except CelestrakClientError as exc:
+            if _is_network_failure(exc):
+                self._unreachable_until = time.monotonic() + self._cooldown_seconds
+            raise
+        self._unreachable_until = 0.0
+
         validate_tle_lines(line1, line2)
 
         return _to_satellite_record(record, line1=line1, line2=line2, retrieved_at=retrieved_at)
@@ -115,7 +151,9 @@ class CelestrakClient:
         try:
             response = self._client.get(CELESTRAK_GP_URL, params=params)
         except httpx.HTTPError as exc:
-            raise CelestrakClientError(f"Could not reach CelesTrak: {exc}") from exc
+            raise CelestrakClientError(
+                f"Could not reach CelesTrak: {exc or type(exc).__name__}"
+            ) from exc
 
         if response.status_code != 200:
             raise CelestrakClientError(
@@ -204,6 +242,13 @@ class CelestrakClient:
             if hit is not None:
                 results.append(hit)
         return results
+
+
+def _is_network_failure(exc: Exception) -> bool:
+    """True for "couldn't reach CelesTrak at all" (timeout, refused/dropped
+    connection) as opposed to CelesTrak answering with an error status or
+    unusable data - only the former should trigger the cooldown."""
+    return str(exc).startswith("Could not reach CelesTrak")
 
 
 def _to_search_result(record: Dict[str, Any]) -> Optional[SatelliteSearchResult]:

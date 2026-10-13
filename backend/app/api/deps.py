@@ -7,6 +7,7 @@ function (`get_satellite_service`) instead of reaching into internals.
 
 from __future__ import annotations
 
+from datetime import timedelta
 from functools import lru_cache
 from typing import List
 
@@ -17,6 +18,7 @@ from app.data.cache import Cache, InMemoryTTLCache
 from app.data.celestrak import CelestrakClient
 from app.data.geocoding import GeocodingClient
 from app.data.postgres_cache import PostgresSatelliteCache
+from app.data.snapshot import TleSnapshotClient
 from app.schemas.geocoding import GeocodeResult
 from app.schemas.satellite import SatelliteRecord, SatelliteSearchResult
 from app.services.geocoding_service import GeocodingService
@@ -29,7 +31,15 @@ from app.services.satellite_service import SatelliteService
 @lru_cache
 def get_celestrak_client() -> CelestrakClient:
     """A single shared CelesTrak client (and its underlying HTTP connection pool)."""
-    return CelestrakClient()
+    return CelestrakClient(
+        unreachable_cooldown_seconds=get_settings().celestrak_unreachable_cooldown_seconds
+    )
+
+
+@lru_cache
+def get_tle_snapshot_client() -> TleSnapshotClient:
+    """Shared client for the optional static TLE snapshot (last-resort fallback)."""
+    return TleSnapshotClient(get_settings().tle_snapshot_url)
 
 
 @lru_cache
@@ -52,8 +62,16 @@ def get_satellite_cache() -> Cache[SatelliteRecord]:
 def get_satellite_service(
     client: CelestrakClient = Depends(get_celestrak_client),
     cache: Cache[SatelliteRecord] = Depends(get_satellite_cache),
+    snapshot: TleSnapshotClient = Depends(get_tle_snapshot_client),
 ) -> SatelliteService:
-    return SatelliteService(client=client, cache=cache)
+    return SatelliteService(
+        client=client,
+        cache=cache,
+        snapshot=snapshot,
+        max_fallback_epoch_age=timedelta(
+            seconds=get_settings().stale_orbital_data_max_epoch_age_seconds
+        ),
+    )
 
 
 def get_pass_service(

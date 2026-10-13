@@ -45,9 +45,16 @@ class InMemoryTTLCache(Generic[T]):
         if entry is None:
             return None
         if time.monotonic() >= entry.expires_at:
-            del self._entries[key]
+            # Expired entries are kept (not deleted) so `get_stale` can still
+            # serve them as a fallback when a refresh fails; `get` itself
+            # never returns an expired value.
             return None
         return entry.value
+
+    def get_stale(self, key: str) -> Optional[T]:
+        """The last value stored for `key`, even if its TTL has expired."""
+        entry = self._entries.get(key)
+        return None if entry is None else entry.value
 
     def set(self, key: str, value: T) -> None:
         self._entries[key] = _CacheEntry(

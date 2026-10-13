@@ -36,25 +36,26 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Callable, Dict, List, Optional, Tuple
 
-from sgp4.api import Satrec
+import numpy as np
+from sgp4.api import Satrec, jday
 
-from app.core.coordinates import TopocentricPosition, teme_to_topocentric, teme_to_topocentric_many
-from app.core.propagation import PropagationError, propagate, propagate_many
+from app.core.coordinates import (
+    FastObserverGeometry,
+    TopocentricPosition,
+    teme_to_topocentric_many,
+)
+from app.core.propagation import propagate_many
 from app.schemas.observer import ObserverLocation
 from app.schemas.pass_event import PassEvent
 
 DEFAULT_MIN_ELEVATION_DEG = 10.0
 DEFAULT_SAMPLE_INTERVAL_SECONDS = 30.0
-# 5 seconds, not 1: profiling (Phase 10) showed each refinement step
-# (bisection/ternary search) costs real time - each one is a real
-# Astropy coordinate transform - and tighter tolerance buys precision
-# nobody needs here. A rise/set time accurate to 5 seconds, or a peak
-# elevation accurate to a similarly small fraction of a degree, is far
-# more precision than a human going outside to look at the sky (or a
-# telescope being manually pointed) can use. Loosening this from 1.0 to
-# 5.0 cut 24-hour search time by roughly 25% with no meaningful loss of
-# usefulness.
-DEFAULT_TIME_TOLERANCE_SECONDS = 5.0
+# 1 second. This was loosened to 5s earlier (Phase 10) because every
+# refinement step was a full Astropy transform; refinement is now done with
+# the fast NumPy geometry (see _make_fast_position_fn), so the tighter
+# tolerance costs almost nothing and rise/set/peak times are located
+# about 5x more precisely than before.
+DEFAULT_TIME_TOLERANCE_SECONDS = 1.0
 
 # A position provider is anything that maps a UTC time to a topocentric
 # position, or None if no position is available at that time (e.g. SGP4
@@ -68,50 +69,116 @@ DEFAULT_TIME_TOLERANCE_SECONDS = 5.0
 PositionFn = Callable[[datetime], "TopocentricPosition | None"]
 
 
-def _make_position_fn(satrec: Satrec, observer: ObserverLocation) -> PositionFn:
-    def _position_at(when: datetime) -> Optional[TopocentricPosition]:
-        try:
-            result = propagate(satrec, when)
-        except PropagationError:
-            return None
-        return teme_to_topocentric(result, observer)
-
-    return _position_at
-
-
-def _make_batch_position_fn(
-    satrec: Satrec, observer: ObserverLocation, grid_times: List[datetime]
-) -> PositionFn:
-    """A position function backed by one vectorized batch propagation of
-    `grid_times` (see coordinates.py's `teme_to_topocentric_many` for the
-    measured performance reason this exists), falling back to the plain
-    single-call path for any time not exactly on that grid - used by
-    bisection/peak refinement, which query arbitrary times between grid
-    points. Those refinement calls are few per pass (a handful of
-    bisection steps), so batching them isn't worth the complexity; the
-    coarse grid is where the sample count (and thus the payoff) is large.
-    """
-    propagation_results = propagate_many(satrec, grid_times)
-    valid_results = [r for r in propagation_results if r is not None]
-    topocentric_results = teme_to_topocentric_many(valid_results, observer)
-
-    # zip(strict=True) would express this invariant but needs Python 3.10+,
-    # so it is checked explicitly to keep Python 3.8 support.
-    if len(valid_results) != len(topocentric_results):
-        raise RuntimeError("Coordinate transform returned a different number of results")
-    grid_positions: Dict[datetime, TopocentricPosition] = dict(
-        zip((r.time for r in valid_results), topocentric_results)
+def _jd_fr(when_utc: datetime) -> Tuple[float, float]:
+    return jday(
+        when_utc.year,
+        when_utc.month,
+        when_utc.day,
+        when_utc.hour,
+        when_utc.minute,
+        when_utc.second + when_utc.microsecond / 1e6,
     )
 
-    single_position_fn = _make_position_fn(satrec, observer)
+
+def _make_fast_position_fn(
+    satrec: Satrec, observer: ObserverLocation, grid_times: List[datetime]
+) -> PositionFn:
+    """A position function used only to *locate* rise/peak/set times.
+
+    Backed by one vectorized SGP4 call for the coarse grid plus a cheap
+    NumPy geometry (see `FastObserverGeometry` in coordinates.py) for every
+    lookup - including the many single-time lookups bisection and
+    ternary-search refinement make between grid points. Those used to each
+    be a full Astropy frame transform (~50-100 ms apiece, ~80% of total
+    search time); here each is tens of microseconds. Positions returned
+    differ from the Astropy path by well under 0.05 degrees, which only
+    nudges *where* a crossing/peak is located by a fraction of a second -
+    the values actually reported for each pass are recomputed with Astropy
+    afterwards in `_polish_with_reference_transform`.
+    """
+    geometry = FastObserverGeometry(observer)
+
+    times_utc = [t.astimezone(timezone.utc) for t in grid_times]
+    jds = np.empty(len(times_utc))
+    frs = np.empty(len(times_utc))
+    for i, t in enumerate(times_utc):
+        jds[i], frs[i] = _jd_fr(t)
+
+    error_codes, positions, _ = satrec.sgp4_array(jds, frs)
+    ok = np.asarray(error_codes) == 0
+
+    grid_positions: Dict[datetime, TopocentricPosition] = {}
+    if ok.any():
+        az, el, rng = geometry.azimuth_elevation_range(jds[ok], frs[ok], positions[ok])
+        valid_times = [t for t, good in zip(times_utc, ok) if good]
+        for t, a, e, r in zip(valid_times, az, el, rng):
+            grid_positions[t] = TopocentricPosition(
+                time=t, azimuth_deg=float(a), elevation_deg=float(e), range_km=float(r)
+            )
 
     def _position_at(when: datetime) -> Optional[TopocentricPosition]:
-        cached = grid_positions.get(when.astimezone(timezone.utc))
+        when_utc = when.astimezone(timezone.utc)
+        cached = grid_positions.get(when_utc)
         if cached is not None:
             return cached
-        return single_position_fn(when)
+        jd, fr = _jd_fr(when_utc)
+        error_code, position, _ = satrec.sgp4(jd, fr)
+        if error_code != 0:
+            return None
+        az1, el1, rng1 = geometry.azimuth_elevation_range(
+            np.array([jd]), np.array([fr]), np.array([position], dtype=float)
+        )
+        return TopocentricPosition(
+            time=when_utc,
+            azimuth_deg=float(az1[0]),
+            elevation_deg=float(el1[0]),
+            range_km=float(rng1[0]),
+        )
 
     return _position_at
+
+
+def _polish_with_reference_transform(
+    satrec: Satrec, observer: ObserverLocation, passes: List[PassEvent]
+) -> List[PassEvent]:
+    """Recompute every reported az/el/range with the reference Astropy
+    transform, in ONE vectorized call for all passes (rise/peak/set of each).
+
+    The times were located with the fast geometry above; this makes the
+    numbers shown to the user come from exactly the same Astropy pipeline as
+    before. If SGP4 fails at any of those instants (essentially never, since
+    the fast search already propagated there), the pass keeps its
+    search-time values rather than being dropped.
+    """
+    if not passes:
+        return passes
+
+    instants: List[datetime] = []
+    for p in passes:
+        instants.extend((p.rise_time, p.peak_time, p.set_time))
+
+    results = propagate_many(satrec, instants)
+    if any(r is None for r in results):
+        return passes
+    topo = teme_to_topocentric_many([r for r in results if r is not None], observer)
+
+    polished: List[PassEvent] = []
+    for i, p in enumerate(passes):
+        rise, peak, set_ = topo[3 * i], topo[3 * i + 1], topo[3 * i + 2]
+        polished.append(
+            p.model_copy(
+                update={
+                    "rise_azimuth_deg": rise.azimuth_deg,
+                    "peak_azimuth_deg": peak.azimuth_deg,
+                    "set_azimuth_deg": set_.azimuth_deg,
+                    "max_elevation_deg": peak.elevation_deg,
+                    "rise_range_km": rise.range_km,
+                    "max_range_km": peak.range_km,
+                    "set_range_km": set_.range_km,
+                }
+            )
+        )
+    return polished
 
 
 def _generate_sample_times(
@@ -216,11 +283,13 @@ def find_passes(
 ) -> List[PassEvent]:
     """Find all passes of a real satellite above `min_elevation_deg`, for one observer.
 
-    Thin wrapper around `find_passes_from_position_fn` that supplies a
-    position function backed by one batched SGP4 + coordinate-transform
-    call for the coarse sampling grid (see `_make_batch_position_fn`) -
-    measured at roughly 60x faster than calling the single-time path once
-    per sample for a 24-hour search window (Phase 10 profiling notes).
+    Thin wrapper around `find_passes_from_position_fn`: crossing/peak times
+    are located with a fast NumPy position function (see
+    `_make_fast_position_fn`), then the reported rise/peak/set values are
+    recomputed with the reference Astropy transform in a single batch (see
+    `_polish_with_reference_transform`). Searching used to run an Astropy
+    transform per refinement step, which dominated total time - this keeps
+    the same results at a small fraction of the cost.
     """
     if start.tzinfo is None or end.tzinfo is None:
         raise ValueError("start and end must be timezone-aware")
@@ -228,8 +297,8 @@ def find_passes(
         raise ValueError("start must be before end")
 
     grid_times = _generate_sample_times(start, end, sample_interval_seconds)
-    position_at = _make_batch_position_fn(satrec, observer, grid_times)
-    return find_passes_from_position_fn(
+    position_at = _make_fast_position_fn(satrec, observer, grid_times)
+    found = find_passes_from_position_fn(
         position_at,
         start,
         end,
@@ -237,6 +306,7 @@ def find_passes(
         sample_interval_seconds=sample_interval_seconds,
         time_tolerance_seconds=time_tolerance_seconds,
     )
+    return _polish_with_reference_transform(satrec, observer, found)
 
 
 def find_passes_from_position_fn(

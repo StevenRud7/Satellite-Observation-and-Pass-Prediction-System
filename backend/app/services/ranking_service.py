@@ -17,8 +17,9 @@ persistence (Phase 6/7) to do properly.
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 from app.core.logging import get_logger
 from app.core.passes import DEFAULT_MIN_ELEVATION_DEG, find_passes
@@ -28,6 +29,7 @@ from app.core.scoring import assess_pass_visibility
 from app.data.exceptions import CelestrakClientError, OrbitalDataValidationError
 from app.schemas.observer import ObserverLocation
 from app.schemas.ranking import RankedOpportunity
+from app.schemas.satellite import SatelliteRecord
 from app.schemas.visibility import ObservationMethod
 from app.services.satellite_service import SatelliteService
 
@@ -37,6 +39,12 @@ logger = get_logger(__name__)
 # docstring. The ISS is used because it is unambiguous and extremely
 # well-known; a real "browse satellites" feature is future work.
 DEFAULT_CANDIDATE_NORAD_IDS: Tuple[int, ...] = (25544,)  # ISS (ZARYA)
+
+# Satellites' orbital data is fetched concurrently (the fetches are pure
+# network/DB waiting), then passes are computed one satellite at a time.
+# Capped so a long satellite list can't open an unreasonable number of
+# simultaneous connections to CelesTrak/the database.
+_MAX_PARALLEL_FETCHES = 6
 
 
 class RankingService:
@@ -83,13 +91,15 @@ class RankingService:
         successful_fetches = 0
         last_fetch_error: Optional[Exception] = None
 
+        fetched = self._fetch_all(norad_ids)
+
         for norad_id in norad_ids:
-            try:
-                record = self._satellite_service.get_satellite(norad_id)
-            except (CelestrakClientError, OrbitalDataValidationError) as exc:
-                logger.warning("Skipping NORAD ID %s in ranking: %s", norad_id, exc)
-                last_fetch_error = exc
+            outcome = fetched[norad_id]
+            if isinstance(outcome, Exception):
+                logger.warning("Skipping NORAD ID %s in ranking: %s", norad_id, outcome)
+                last_fetch_error = outcome
                 continue
+            record = outcome
 
             successful_fetches += 1
 
@@ -127,3 +137,27 @@ class RankingService:
             max_elevation_deg=max_elevation_deg,
             limit=limit,
         )
+
+    def _fetch_all(
+        self, norad_ids: Tuple[int, ...]
+    ) -> Dict[int, Union[SatelliteRecord, Exception]]:
+        """Fetch every distinct satellite's record concurrently.
+
+        Returns, per NORAD ID, either the record or the fetch/validation
+        error it raised (other exception types propagate, exactly as they
+        did when fetching sequentially).
+        """
+
+        def _one(norad_id: int) -> Union[SatelliteRecord, Exception]:
+            try:
+                return self._satellite_service.get_satellite(norad_id)
+            except (CelestrakClientError, OrbitalDataValidationError) as exc:
+                return exc
+
+        unique_ids = list(dict.fromkeys(norad_ids))
+        if len(unique_ids) <= 1:
+            return {nid: _one(nid) for nid in unique_ids}
+
+        with ThreadPoolExecutor(max_workers=min(_MAX_PARALLEL_FETCHES, len(unique_ids))) as pool:
+            outcomes = list(pool.map(_one, unique_ids))
+        return dict(zip(unique_ids, outcomes))
