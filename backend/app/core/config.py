@@ -55,6 +55,28 @@ class Settings(BaseSettings):
     # for another full timeout.
     celestrak_unreachable_cooldown_seconds: int = 90
 
+    # Timeout (seconds) for reading a CelesTrak response. Connecting is capped
+    # separately and lower (see app/data/celestrak.py). CelesTrak normally
+    # answers in about a second; since cached/snapshot/TLE-API fallbacks now
+    # exist, waiting 30s for a stalled connection is no longer worth it.
+    celestrak_timeout_seconds: float = 15.0
+
+    # Bind outgoing CelesTrak/TLE-API connections to IPv4. Some hosts have
+    # IPv6 routes that hang instead of failing, which shows up as a plain
+    # "timed out" even though IPv4 would work instantly.
+    force_ipv4: bool = True
+
+    # Secondary live source (different host from CelesTrak), consulted only
+    # after a live CelesTrak fetch fails. See app/data/tle_api.py.
+    tle_api_enabled: bool = True
+    tle_api_base_url: str = "https://tle.ivanstanojevic.me/api/tle"
+
+    # If a TLE snapshot is configured and was generated within this many
+    # seconds, it is used BEFORE trying CelesTrak (comparable freshness to
+    # the 6h cache TTL, with zero dependence on CelesTrak being reachable
+    # from this host). 0 disables snapshot-first behaviour.
+    snapshot_prefer_max_age_seconds: int = 8 * 60 * 60
+
     # Optional URL of a JSON TLE snapshot (see scripts/update_tle_snapshot.py
     # and .github/workflows/update-tle-snapshot.yml) used as a last-resort
     # orbital data source when CelesTrak can't be reached from this host.

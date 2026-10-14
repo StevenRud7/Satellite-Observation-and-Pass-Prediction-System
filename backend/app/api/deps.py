@@ -19,6 +19,7 @@ from app.data.celestrak import CelestrakClient
 from app.data.geocoding import GeocodingClient
 from app.data.postgres_cache import PostgresSatelliteCache
 from app.data.snapshot import TleSnapshotClient
+from app.data.tle_api import TleApiClient, build_http_client
 from app.schemas.geocoding import GeocodeResult
 from app.schemas.satellite import SatelliteRecord, SatelliteSearchResult
 from app.services.geocoding_service import GeocodingService
@@ -31,8 +32,23 @@ from app.services.satellite_service import SatelliteService
 @lru_cache
 def get_celestrak_client() -> CelestrakClient:
     """A single shared CelesTrak client (and its underlying HTTP connection pool)."""
+    settings = get_settings()
     return CelestrakClient(
-        unreachable_cooldown_seconds=get_settings().celestrak_unreachable_cooldown_seconds
+        timeout=settings.celestrak_timeout_seconds,
+        unreachable_cooldown_seconds=settings.celestrak_unreachable_cooldown_seconds,
+        force_ipv4=settings.force_ipv4,
+    )
+
+
+@lru_cache
+def get_tle_api_client() -> TleApiClient:
+    """Shared client for the secondary live source (see app/data/tle_api.py)."""
+    settings = get_settings()
+    return TleApiClient(
+        base_url=settings.tle_api_base_url,
+        http_client=build_http_client(settings.force_ipv4),
+        cooldown_seconds=settings.celestrak_unreachable_cooldown_seconds,
+        enabled=settings.tle_api_enabled,
     )
 
 
@@ -63,14 +79,16 @@ def get_satellite_service(
     client: CelestrakClient = Depends(get_celestrak_client),
     cache: Cache[SatelliteRecord] = Depends(get_satellite_cache),
     snapshot: TleSnapshotClient = Depends(get_tle_snapshot_client),
+    tle_api: TleApiClient = Depends(get_tle_api_client),
 ) -> SatelliteService:
+    settings = get_settings()
     return SatelliteService(
         client=client,
         cache=cache,
         snapshot=snapshot,
-        max_fallback_epoch_age=timedelta(
-            seconds=get_settings().stale_orbital_data_max_epoch_age_seconds
-        ),
+        max_fallback_epoch_age=timedelta(seconds=settings.stale_orbital_data_max_epoch_age_seconds),
+        tle_api=tle_api,
+        snapshot_prefer_max_age=timedelta(seconds=settings.snapshot_prefer_max_age_seconds),
     )
 
 
@@ -102,8 +120,10 @@ def get_satellite_search_cache() -> Cache[List[SatelliteSearchResult]]:
 def get_satellite_search_service(
     client: CelestrakClient = Depends(get_celestrak_client),
     cache: Cache[List[SatelliteSearchResult]] = Depends(get_satellite_search_cache),
+    tle_api: TleApiClient = Depends(get_tle_api_client),
+    snapshot: TleSnapshotClient = Depends(get_tle_snapshot_client),
 ) -> SatelliteSearchService:
-    return SatelliteSearchService(client=client, cache=cache)
+    return SatelliteSearchService(client=client, cache=cache, tle_api=tle_api, snapshot=snapshot)
 
 
 @lru_cache

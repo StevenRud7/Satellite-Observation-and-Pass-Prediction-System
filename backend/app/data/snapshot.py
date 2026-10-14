@@ -26,7 +26,7 @@ from __future__ import annotations
 import threading
 import time
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import httpx
 
@@ -34,7 +34,7 @@ from app.core.logging import get_logger
 from app.data.exceptions import OrbitalDataValidationError
 from app.data.validation import validate_tle_lines
 from app.schemas.orbital_elements import OrbitalElementSet
-from app.schemas.satellite import SatelliteRecord
+from app.schemas.satellite import SatelliteRecord, SatelliteSearchResult
 
 logger = get_logger(__name__)
 
@@ -71,7 +71,12 @@ def _intl_designator(line1: str) -> Optional[str]:
 
 
 def record_from_tle(
-    norad_id: int, name: str, line1: str, line2: str, retrieved_at: datetime
+    norad_id: int,
+    name: str,
+    line1: str,
+    line2: str,
+    retrieved_at: datetime,
+    source: str = SNAPSHOT_SOURCE_NAME,
 ) -> SatelliteRecord:
     validate_tle_lines(line1, line2)
     if int(line1[2:7]) != norad_id:
@@ -92,7 +97,7 @@ def record_from_tle(
             bstar=_parse_tle_exponent_field(line1[53:61]),
             element_set_number=int(line1[64:68]),
             revolution_number=int(line2[63:68]),
-            source=SNAPSHOT_SOURCE_NAME,
+            source=source,
             retrieved_at=retrieved_at,
         )
     except ValueError as exc:
@@ -145,6 +150,26 @@ class TleSnapshotClient:
             self._payload = payload
             self._loaded_at = time.monotonic()
             return payload
+
+    def search(self, query: str, limit: int = 20) -> List[SatelliteSearchResult]:
+        """Case-insensitive substring match on snapshot satellite names."""
+        payload = self._load()
+        if payload is None:
+            return []
+        needle = query.strip().lower()
+        hits: List[SatelliteSearchResult] = []
+        for key, entry in payload["satellites"].items():
+            if not isinstance(entry, dict):
+                continue
+            name = str(entry.get("name", ""))
+            if needle and needle in name.lower():
+                try:
+                    hits.append(SatelliteSearchResult(norad_id=int(key), name=name))
+                except ValueError:
+                    continue
+            if len(hits) >= limit:
+                break
+        return hits
 
     def get(self, norad_id: int) -> Optional[SatelliteRecord]:
         payload = self._load()

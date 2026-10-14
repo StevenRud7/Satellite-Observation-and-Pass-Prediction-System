@@ -1,0 +1,5 @@
+# Extra NORAD IDs to include in the published TLE snapshot, one per line,
+# in addition to the curated catalog and CelesTrak's "stations" and "visual"
+# (brightest objects) groups. Add the IDs of any satellites you track that
+# aren't in those sets, so they keep working even when CelesTrak can't be
+# reached from the backend host. Lines starting with # are ignored.

@@ -362,33 +362,63 @@ paid instance.
 Symptoms: "Find best opportunities" works locally but on the public site fails
 with something like `Could not reach CelesTrak: timed out`, or returns nothing.
 
-**Step 1 - find out which dependency is slow.** Open
-`https://<your-render-service>.onrender.com/api/diagnostics/upstream`. It makes
-one small CelesTrak request, checks the optional TLE snapshot, and pings the
-database, reporting the time each took:
+How the backend now gets a satellite's orbital data, in order: fresh cache ->
+fresh TLE snapshot (if configured) -> live CelesTrak -> the public TLE API
+(a different host that mirrors CelesTrak's data) -> older cache/snapshot (TLE
+epoch at most 14 days old). So no single unreachable service should break the
+page. Steps to get all of it working:
 
-- `celestrak_iss_tle.ok: true` and a few seconds -> CelesTrak is reachable;
-  the app's own caching/pre-warming (below) is all you need.
-- `celestrak_iss_tle.ok: false` with a timeout or connection error -> your
-  Render host can't reach CelesTrak. Set up the TLE snapshot fallback (Step 3).
+### 1. Deploy the code
+Push to `main`; Render redeploys. (If you created the Render service by hand
+rather than from `render.yaml`, add `PREWARM_ENABLED=true` yourself.)
 
-**Step 2 - pre-warming.** `render.yaml` sets `PREWARM_ENABLED=true`: at startup
-(and every 2 hours while the service is awake) the backend refreshes the
-curated catalog satellites' orbital data into the cache, so a user request
-usually never waits on CelesTrak. If you configured Render by hand instead of
-via the Blueprint, add that environment variable yourself.
+### 2. Check what Render can reach
+Open `https://<your-service>.onrender.com/api/diagnostics/upstream`
+(the first load after idle can take ~1 min while Render wakes the service).
+Each check reports `ok` and `seconds`:
 
-**Step 3 - TLE snapshot fallback (only needed if Step 1 shows CelesTrak is
-unreachable from Render).**
+- `celestrak_default` / `celestrak_ipv4_only` - CelesTrak, normal vs IPv4-only.
+  If only the IPv4 one works, IPv6 routing is the culprit (`FORCE_IPV4=true`,
+  already the default, handles it).
+- `tle_api` - the secondary source. If CelesTrak fails but this is `ok`, you
+  are already covered for every satellite.
+- `tle_snapshot` - the GitHub snapshot (after step 3), with `generated_at`.
 
-1. In GitHub: Actions -> "Update TLE snapshot" -> Run workflow. It fetches the
-   catalog satellites' TLEs and publishes `tle_snapshot.json` on a `tle-data`
-   branch (a separate branch on purpose, so refreshes never trigger a Render or
-   Cloudflare redeploy). It then re-runs every 6 hours.
-2. In Render, set `TLE_SNAPSHOT_URL` to
-   `https://raw.githubusercontent.com/<you>/<repo>/tle-data/tle_snapshot.json`.
+### 3. Set up the TLE snapshot (independent of CelesTrak reachability from Render)
+1. Make sure the repo is **public** (Render fetches the snapshot from
+   `raw.githubusercontent.com`, which needs no token only for public repos).
+2. GitHub -> your repo -> **Actions** tab -> **Update TLE snapshot** ->
+   **Run workflow** -> Run. (If Actions asks you to enable workflows, do so.
+   Also check Settings -> Actions -> General -> Workflow permissions allows
+   writes; the workflow requests `contents: write` itself.)
+3. When it finishes green, a `tle-data` branch exists. Open
+   `https://raw.githubusercontent.com/<you>/<repo>/tle-data/tle_snapshot.json`
+   in a browser - you should see JSON with `generated_at` and a `satellites`
+   object.
+4. Render dashboard -> your backend service -> **Environment** -> add
+   `TLE_SNAPSHOT_URL` = that raw URL -> **Save changes** (Render restarts the
+   service). If you deploy via Blueprint, `render.yaml` already has it; check
+   the user/repo in the URL is yours.
+5. Re-open `/api/diagnostics/upstream`: `tle_snapshot.ok` should be `true`.
 
-The snapshot is consulted only after a live CelesTrak fetch has failed, and
-only if the cached/snapshotted orbit's TLE epoch is at most 14 days old
-(`STALE_ORBITAL_DATA_MAX_EPOCH_AGE_SECONDS`). Satellites outside the curated
-catalog still need a live CelesTrak fetch.
+The workflow then refreshes the snapshot every 6 hours. While the snapshot is
+less than 8 hours old, the backend uses it *before* trying CelesTrak, so
+requests don't wait on CelesTrak at all. GitHub disables scheduled workflows
+after 60 days without repo activity; re-run it from the Actions tab if the
+`generated_at` in the diagnostics ever looks stale.
+
+To include more satellites in the snapshot, add NORAD IDs to
+`scripts/extra_norad_ids.txt` (one per line). It already contains the curated
+catalog plus CelesTrak's `stations` and `visual` groups. Satellites outside the
+snapshot still work through live CelesTrak or the TLE API.
+
+### Settings (all optional)
+| Variable | Default | Meaning |
+|---|---|---|
+| `TLE_SNAPSHOT_URL` | unset | Raw URL of the snapshot JSON |
+| `SNAPSHOT_PREFER_MAX_AGE_SECONDS` | `28800` | Use the snapshot before live fetches while it is younger than this (`0` = only as a fallback) |
+| `PREWARM_ENABLED` | `false` (`true` in render.yaml) | Refresh catalog satellites in the background |
+| `FORCE_IPV4` | `true` | Avoid hanging IPv6 routes |
+| `TLE_API_ENABLED` | `true` | Allow the secondary live source |
+| `CELESTRAK_TIMEOUT_SECONDS` | `15` | Read timeout for CelesTrak |
+| `STALE_ORBITAL_DATA_MAX_EPOCH_AGE_SECONDS` | `1209600` | Oldest TLE epoch (14 days) usable as a fallback |

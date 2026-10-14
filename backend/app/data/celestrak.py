@@ -37,7 +37,8 @@ against the real API, for the same reason.)
 
 The HTTP client is injectable so tests can supply a mocked transport
 instead of making real network calls. The default timeout is
-deliberately more generous than httpx's own default: on free-tier hosts
+more generous than httpx's own 5s default (since cached/snapshot/TLE-API
+fallbacks now exist, it is no longer the 30s it once was): on free-tier hosts
 (e.g. Render) outbound requests share an IP across many unrelated
 accounts, and CelesTrak can be slow - or effectively unreachable for a
 window - for reasons that have nothing to do with this app's own code.
@@ -67,7 +68,7 @@ DATA_SOURCE_NAME = "celestrak"
 
 # See the module docstring above for why this is more generous than
 # httpx's own 5-second default.
-DEFAULT_TIMEOUT_SECONDS = 30.0
+DEFAULT_TIMEOUT_SECONDS = 15.0
 
 # Connecting is capped much lower than reading: a host that can't reach
 # CelesTrak at all (blocked/dropped connections) should fail in seconds and
@@ -88,9 +89,12 @@ class CelestrakClient:
         http_client: Optional[httpx.Client] = None,
         timeout: float = DEFAULT_TIMEOUT_SECONDS,
         unreachable_cooldown_seconds: float = DEFAULT_UNREACHABLE_COOLDOWN_SECONDS,
+        force_ipv4: bool = False,
     ) -> None:
         self._client = http_client or httpx.Client(
-            timeout=httpx.Timeout(timeout, connect=min(timeout, CONNECT_TIMEOUT_SECONDS))
+            timeout=httpx.Timeout(timeout, connect=min(timeout, CONNECT_TIMEOUT_SECONDS)),
+            transport=httpx.HTTPTransport(local_address="0.0.0.0") if force_ipv4 else None,
+            headers={"User-Agent": "satellite-pass-predictor/1.0"},
         )
         self._owns_client = http_client is None
         self._cooldown_seconds = unreachable_cooldown_seconds

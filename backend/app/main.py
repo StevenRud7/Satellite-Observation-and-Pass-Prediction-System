@@ -53,6 +53,7 @@ def _prewarm_loop() -> None:
         get_celestrak_client,
         get_satellite_cache,
         get_satellite_service,
+        get_tle_api_client,
         get_tle_snapshot_client,
     )
     from app.data.satellite_catalog import SATELLITE_CATALOG
@@ -62,6 +63,7 @@ def _prewarm_loop() -> None:
             client=get_celestrak_client(),
             cache=get_satellite_cache(),
             snapshot=get_tle_snapshot_client(),
+            tle_api=get_tle_api_client(),
         )
         for entry in SATELLITE_CATALOG:
             if _prewarm_stop.is_set():
