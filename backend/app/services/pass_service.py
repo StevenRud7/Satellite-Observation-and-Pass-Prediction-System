@@ -100,5 +100,7 @@ class PassService:
             longitude_deg=request.longitude_deg,
             altitude_m=request.altitude_m,
         )
-        new_id = observer_repo.create(location)
+        # A working record only - the "Saved locations" list is populated
+        # solely by an explicit save (POST /api/observers).
+        new_id = observer_repo.get_or_create_working(location)
         return new_id, location

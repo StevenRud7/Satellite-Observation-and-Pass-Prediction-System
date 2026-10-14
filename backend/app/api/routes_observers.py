@@ -28,7 +28,7 @@ _DbSessionDep = Depends(get_db_session)
 def create_observer(
     observer: ObserverLocation, session: Session = _DbSessionDep
 ) -> ObserverResponse:
-    observer_id = ObserverRepository(session).create(observer)
+    observer_id = ObserverRepository(session).save(observer)
     return ObserverResponse(id=observer_id, **observer.model_dump())
 
 
@@ -36,7 +36,7 @@ def create_observer(
 def list_observers(session: Session = _DbSessionDep) -> List[ObserverResponse]:
     return [
         ObserverResponse(id=observer_id, **location.model_dump())
-        for observer_id, location in ObserverRepository(session).list_all()
+        for observer_id, location in ObserverRepository(session).list_all(saved_only=True)
     ]
 
 
