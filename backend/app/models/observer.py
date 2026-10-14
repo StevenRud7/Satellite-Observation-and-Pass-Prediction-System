@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, Float, Integer, String, func
+from sqlalchemy import Boolean, DateTime, Float, Integer, String, false, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -23,6 +23,14 @@ class Observer(Base):
     latitude: Mapped[float] = mapped_column(Float, nullable=False)
     longitude: Mapped[float] = mapped_column(Float, nullable=False)
     altitude: Mapped[float] = mapped_column(Float, nullable=False, server_default="0")
+
+    # True only for locations the person explicitly saved (the "Save this
+    # location" button). Rows with is_saved = False are working records: the
+    # pass-prediction endpoint needs *some* observer row to attach persisted
+    # passes to, but those must never show up in the "Saved locations" list.
+    is_saved: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
