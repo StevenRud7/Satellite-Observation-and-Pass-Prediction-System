@@ -9,17 +9,19 @@ import SatellitePicker, { type TrackedSatellite } from "../components/SatelliteP
 import type { RankedOpportunity } from "../types/api";
 import { opportunityKey } from "../utils/format";
 
-// Singapore: chosen as the default location because it maximizes the
-// chance of a first-time visitor immediately seeing real results. It's
-// close to the equator (1.35°N), so it falls within every catalog
-// satellite's visible-latitude band (even Hubble's relatively narrow
-// ±28.47°) rather than sitting near the edge of one - and it's a
-// globally well-known city, so the default doesn't feel arbitrary.
+// New York City: a globally well-known default that is also a very good
+// place to see satellites. A satellite spends the most time (so makes the
+// most passes) near the latitude equal to its orbital inclination, and
+// mid-latitudes around 40°N sit right at those peaks: the ISS (51.6°) and
+// Tiangong (41.5°) pass over frequently, and Hubble (28.5°, visible out to
+// roughly 43°N) is still comfortably in range. Near the equator - where
+// the previous default, Singapore, sits - ground-track density is the
+// lowest it gets, so there are noticeably fewer passes overall.
 const DEFAULT_LOCATION: Location = {
-  name: "Singapore",
-  latitudeDeg: 1.3521,
-  longitudeDeg: 103.8198,
-  altitudeM: 15,
+  name: "New York City",
+  latitudeDeg: 40.7128,
+  longitudeDeg: -74.006,
+  altitudeM: 10,
   observerId: null,
 };
 
