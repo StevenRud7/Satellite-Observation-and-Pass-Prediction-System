@@ -146,4 +146,36 @@ describe("Dashboard", () => {
     // it is still in the document, not replaced by a navigation.
     expect(screen.getByText("Mission queue")).toBeInTheDocument();
   });
+  it("shows the pass date in each queue card and scrolls the dossier into view when stacked", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetchByUrl({
+        "/api/observers": async () => [],
+        "/api/satellites/catalog": async () => [],
+        "/api/observations/best": async () => [SAMPLE_OPPORTUNITY],
+        "/api/passes/predict": async () => [],
+      }),
+    );
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: true })),
+    );
+    const scrollSpy = vi.spyOn(Element.prototype, "scrollIntoView");
+
+    render(<Dashboard />);
+    fireEvent.click(screen.getByRole("button", { name: /find best opportunities/i }));
+
+    const expectedDate = new Date(SAMPLE_OPPORTUNITY.pass_event.rise_time).toLocaleDateString(
+      undefined,
+      { weekday: "short", month: "short", day: "numeric" },
+    );
+    const dateLabel = await screen.findByText(expectedDate);
+    const card = dateLabel.closest("button") as HTMLElement;
+    expect(card).toHaveAttribute("aria-pressed", "false");
+
+    scrollSpy.mockClear();
+    fireEvent.click(card);
+    await waitFor(() => expect(scrollSpy).toHaveBeenCalled());
+    expect(screen.getByRole("button", { name: /back to passes/i })).toBeInTheDocument();
+  });
 });

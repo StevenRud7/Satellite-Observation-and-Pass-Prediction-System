@@ -36,6 +36,14 @@ const DEFAULT_SETTINGS: ObservationSettings = {
 // than an arbitrarily short top-N list.
 const MAX_RESULTS = 100;
 
+// Must match the breakpoint in dashboard.css where the queue and dossier
+// stop sitting side by side and stack into one column.
+const STACKED_LAYOUT_QUERY = "(max-width: 64rem)";
+
+function isStackedLayout(): boolean {
+  return typeof window.matchMedia === "function" && window.matchMedia(STACKED_LAYOUT_QUERY).matches;
+}
+
 /**
  * The whole app, as a single page ("mission control"): a row of control
  * cards (location, satellite picker, preferences) sits on top so all
@@ -59,6 +67,7 @@ function Dashboard() {
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
 
   const resultsRef = useRef<HTMLDivElement | null>(null);
+  const dossierRef = useRef<HTMLDivElement | null>(null);
 
   async function findBestOpportunities(): Promise<void> {
     if (satellites.length === 0) {
@@ -101,6 +110,24 @@ function Dashboard() {
     // the location form (which the person can still see and use) don't
     // retroactively change the pass that's already open.
     setSelectedLocation(location);
+
+    // Always start the dossier at its top (it can scroll on its own on wide
+    // screens - see `.mission-control__dossier` in dashboard.css).
+    if (dossierRef.current) dossierRef.current.scrollTop = 0;
+
+    // On narrow screens the dossier is stacked BELOW the whole queue, so
+    // with many qualifying passes it would be a long scroll away. Jump to
+    // it. (On wide screens it sits beside the queue and is already in view.)
+    if (isStackedLayout()) {
+      dossierRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
+  function backToQueue(): void {
+    const card = Array.from(
+      resultsRef.current?.querySelectorAll<HTMLElement>("[data-opportunity-key]") ?? [],
+    ).find((el) => selected !== null && el.dataset.opportunityKey === opportunityKey(selected));
+    (card ?? resultsRef.current)?.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
   return (
@@ -140,14 +167,23 @@ function Dashboard() {
           )}
         </div>
 
-        <div className="mission-control__dossier">
+        <div className="mission-control__dossier" ref={dossierRef}>
           {selected && selectedLocation ? (
-            <PassDossier
-              key={opportunityKey(selected)}
-              opportunity={selected}
-              location={selectedLocation}
-              onClose={() => setSelected(null)}
-            />
+            <>
+              <button
+                type="button"
+                className="btn btn--ghost mission-control__back"
+                onClick={backToQueue}
+              >
+                &uarr; Back to passes
+              </button>
+              <PassDossier
+                key={opportunityKey(selected)}
+                opportunity={selected}
+                location={selectedLocation}
+                onClose={() => setSelected(null)}
+              />
+            </>
           ) : (
             <div className="card mission-control__dossier-placeholder">
               <p className="help-text">
