@@ -12,6 +12,29 @@ export function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 }
 
+/** Calendar date, e.g. "Wed, Oct 14". Uses the same (browser-local) time
+ * zone as `formatTime`, so a date and a time shown together always agree. */
+export function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+/** Date plus time, e.g. "Wed, Oct 14 · 21:05". */
+export function formatDateAndTime(iso: string): string {
+  return `${formatDate(iso)} · ${formatTime(iso)}`;
+}
+
+/** The date a pass happens on - or both dates, e.g. "Wed, Oct 14 – Thu, Oct 15",
+ * when it runs through local midnight. */
+export function formatPassDates(riseIso: string, setIso: string): string {
+  const riseDate = formatDate(riseIso);
+  const setDate = formatDate(setIso);
+  return riseDate === setDate ? riseDate : `${riseDate} \u2013 ${setDate}`;
+}
+
 export function formatDuration(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
   const secs = Math.round(seconds % 60);
