@@ -55,11 +55,34 @@
 .mission-control__dossier {
   position: sticky;
   top: 1.5rem;
+  /* The dossier is taller than a screen. A sticky box taller than the
+     viewport can't be scrolled to its bottom until the whole queue beside
+     it has scrolled past - which is what forced people to scroll through
+     every pass first. Capping its height and letting it scroll on its own
+     means the queue and the dossier each scroll independently. */
+  max-height: calc(100vh - 3rem);
+  max-height: calc(100dvh - 3rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Only shown when the layout is stacked (see below). */
+.mission-control__back {
+  display: none;
 }
 
 @media (max-width: 64rem) {
   .mission-control__dossier {
     position: static;
+    max-height: none;
+    overflow-y: visible;
+    /* Leaves a little room above it when scrolled into view on selection. */
+    scroll-margin-top: 1rem;
+  }
+
+  .mission-control__back {
+    display: inline-flex;
+    margin-bottom: 0.75rem;
   }
 }
 
@@ -216,6 +239,11 @@
   font-family: var(--font-mono);
   font-size: 0.72rem;
   color: var(--color-text-dim);
+}
+
+.opportunity-card__date {
+  font-size: 0.85rem;
+  color: var(--color-text);
 }
 
 .opportunity-card__stats {

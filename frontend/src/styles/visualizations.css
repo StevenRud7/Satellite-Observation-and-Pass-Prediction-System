@@ -3,6 +3,11 @@
   margin: 0.5rem 0 1.25rem;
 }
 
+.pass-timeline__date {
+  margin: 0 0 0.6rem;
+  font-size: 0.85rem;
+}
+
 .pass-timeline__track {
   position: relative;
   height: 6px;
