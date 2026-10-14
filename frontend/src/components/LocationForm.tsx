@@ -122,7 +122,11 @@ function LocationForm({ location, onChange }: LocationFormProps) {
         longitude_deg: location.longitudeDeg,
         altitude_m: location.altitudeM,
       });
-      setSavedObservers((prev) => [...prev, created]);
+      // The backend returns the existing entry if this exact place was
+      // already saved, so never add the same id to the list twice.
+      setSavedObservers((prev) =>
+        prev.some((o) => o.id === created.id) ? prev : [...prev, created],
+      );
       onChange({ ...location, observerId: created.id });
     } catch (error) {
       setSaveError(error instanceof ApiError ? error.message : "Could not save this location.");
@@ -143,7 +147,7 @@ function LocationForm({ location, onChange }: LocationFormProps) {
           id="place-search"
           className="field__input"
           type="text"
-          placeholder="e.g. Marina Bay, Singapore  or  Rio de Janeiro"
+          placeholder="e.g. Rome, Los Angeles  or  Tokyo"
           value={placeQuery}
           onChange={(e) => {
             setPlaceQuery(e.target.value);
@@ -264,8 +268,13 @@ function LocationForm({ location, onChange }: LocationFormProps) {
         />
       </div>
 
-      <button type="button" className="btn" onClick={() => void saveLocation()} disabled={saving}>
-        {saving ? "Saving..." : "Save this location"}
+      <button
+        type="button"
+        className="btn"
+        onClick={() => void saveLocation()}
+        disabled={saving || location.observerId !== null}
+      >
+        {saving ? "Saving..." : location.observerId !== null ? "Saved" : "Save this location"}
       </button>
       {saveError && <p className="error-text">{saveError}</p>}
     </div>
