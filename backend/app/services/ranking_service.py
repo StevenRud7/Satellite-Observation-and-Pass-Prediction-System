@@ -93,7 +93,10 @@ class RankingService:
 
         fetched = self._fetch_all(norad_ids)
 
-        for norad_id in norad_ids:
+        # Each distinct satellite is processed once. Without this, a NORAD ID
+        # repeated in the request (e.g. ?norad_ids=25544&norad_ids=25544)
+        # produced every one of its passes twice in the results.
+        for norad_id in dict.fromkeys(norad_ids):
             outcome = fetched[norad_id]
             if isinstance(outcome, Exception):
                 logger.warning("Skipping NORAD ID %s in ranking: %s", norad_id, outcome)
