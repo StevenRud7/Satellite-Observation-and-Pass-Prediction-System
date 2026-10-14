@@ -1,5 +1,5 @@
 import type { PassEvent } from "../types/api";
-import { formatTime } from "../utils/format";
+import { formatPassDates, formatTime } from "../utils/format";
 
 interface PassTimelineProps {
   pass: PassEvent;
@@ -13,6 +13,9 @@ function PassTimeline({ pass }: PassTimelineProps) {
 
   return (
     <div className="pass-timeline">
+      <p className="pass-timeline__date readout">
+        {formatPassDates(pass.rise_time, pass.set_time)}
+      </p>
       <div className="pass-timeline__track">
         <div className="pass-timeline__fill" />
         <div

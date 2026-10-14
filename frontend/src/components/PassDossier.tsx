@@ -14,7 +14,7 @@ import type {
   PassWithVisibility,
   RankedOpportunity,
 } from "../types/api";
-import { formatDegrees, formatDuration, formatTime, methodLabel } from "../utils/format";
+import { formatDateAndTime, formatDegrees, formatDuration, methodLabel } from "../utils/format";
 
 // Three.js is a large dependency - only load it when the 3D tab is
 // actually opened, rather than paying that cost whenever a dossier opens.
@@ -178,20 +178,20 @@ function PassSummary({ pass }: { pass: PassWithVisibility }) {
       <div className="pass-summary__item">
         <span className="field__label">Rise</span>
         <strong className="readout">
-          {formatTime(p.rise_time)} · {formatDegrees(p.rise_azimuth_deg)}
+          {formatDateAndTime(p.rise_time)} · {formatDegrees(p.rise_azimuth_deg)}
         </strong>
       </div>
       <div className="pass-summary__item">
         <span className="field__label">Peak</span>
         <strong className="readout">
-          {formatTime(p.peak_time)} · {formatDegrees(p.peak_azimuth_deg)} ·{" "}
+          {formatDateAndTime(p.peak_time)} · {formatDegrees(p.peak_azimuth_deg)} ·{" "}
           {formatDegrees(p.max_elevation_deg)} elevation
         </strong>
       </div>
       <div className="pass-summary__item">
         <span className="field__label">Set</span>
         <strong className="readout">
-          {formatTime(p.set_time)} · {formatDegrees(p.set_azimuth_deg)}
+          {formatDateAndTime(p.set_time)} · {formatDegrees(p.set_azimuth_deg)}
         </strong>
       </div>
       <div className="pass-summary__item">

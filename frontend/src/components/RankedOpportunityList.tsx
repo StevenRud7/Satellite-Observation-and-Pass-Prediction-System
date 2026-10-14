@@ -1,5 +1,11 @@
 import type { RankedOpportunity } from "../types/api";
-import { formatDegrees, formatDuration, formatTime, opportunityKey } from "../utils/format";
+import {
+  formatDegrees,
+  formatDuration,
+  formatPassDates,
+  formatTime,
+  opportunityKey,
+} from "../utils/format";
 import ClassificationBadge from "./ClassificationBadge";
 
 interface RankedOpportunityListProps {
@@ -30,7 +36,7 @@ function RankedOpportunityList({
         const { pass_event: pass, visibility } = opportunity;
         const key = opportunityKey(opportunity);
         return (
-          <li key={key}>
+          <li key={key} data-opportunity-key={key}>
             <button
               type="button"
               className="opportunity-card"
@@ -48,6 +54,9 @@ function RankedOpportunityList({
                 </span>
                 <span className="opportunity-card__designation">
                   DESIGNATION #{opportunity.norad_id}
+                </span>
+                <span className="opportunity-card__date readout">
+                  {formatPassDates(pass.rise_time, pass.set_time)}
                 </span>
                 <span className="opportunity-card__stats">
                   {formatTime(pass.rise_time)} &ndash; {formatTime(pass.set_time)} &middot; max{" "}
