@@ -10,7 +10,9 @@ see the ISS tonight?") using genuine orbital mechanics (SGP4
 propagation, real ephemeris-grade coordinate transforms, real sun/shadow
 geometry) rather than a lookup table or a guess.
 
-Web Link not public yet, but can be set up locally using INTRUCTIONS.md.
+Web Link: https://satellite-obs-system.stevenrud77-e18.workers.dev/ 
+
+Can also be set up locally with the help of INTRUCTIONS.md.
 
 ---
 
