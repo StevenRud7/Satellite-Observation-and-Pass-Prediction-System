@@ -9,7 +9,7 @@ import { useBackendHealth } from "./hooks/useBackendHealth";
 import Dashboard from "./pages/Dashboard";
 
 const STATUS_LABEL: Record<string, string> = {
-  checking: "Checking...",
+  checking: "Loading, Please Wait",
   online: "Online",
   offline: "Offline",
 };

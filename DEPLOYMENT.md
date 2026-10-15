@@ -225,7 +225,7 @@ https://satellite-obs-system.pages.dev
 ```
 
 **Verify it:** open that URL in a browser. You should see the app shell
-and "Backend status: Checking..." briefly. It will very likely then show
+and "Backend status: Loading, Please Wait" briefly. It will very likely then show
 **Offline** - that's expected and fixed in the next step: the backend is
 up, but doesn't yet know to trust requests from this origin (CORS).
 

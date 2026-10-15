@@ -29,7 +29,7 @@ describe("App", () => {
 
     render(<App />);
 
-    expect(screen.getByText("Checking...")).toBeInTheDocument();
+    expect(screen.getByText("Loading, Please Wait")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText("Online")).toBeInTheDocument());
 
     // Location, satellite picker, preferences, and the mission queue are
